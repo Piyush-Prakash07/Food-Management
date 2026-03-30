@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+.DS_Store
+
+# Testing scripts (if you don't want them in git)
+test_*.js
+users.json
+hash.txt
