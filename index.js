@@ -12,7 +12,14 @@ const verifyRole = require('./middleware/rbac');
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+const corsOptions = {
+    origin: process.env.ALLOWED_ORIGINS 
+        ? process.env.ALLOWED_ORIGINS.split(',') 
+        : 'http://localhost:5173',
+    credentials: true
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Import route files
@@ -34,8 +41,11 @@ app.use('/api/users', userRoutes);
 // Sync Database logic
 const PORT = process.env.PORT || 5000;
 
-// Instead of force: true, use alter: true to adjust tables, or { force: false } in production.
-db.sequelize.sync({ alter: true }).then(() => {
+// Safe DB sync: do not run alter: true in production unless explicitly requested.
+const isProd = process.env.NODE_ENV === 'production';
+const shouldAlter = process.env.DB_SYNC_ALTER === 'true' || !isProd;
+
+db.sequelize.sync({ alter: shouldAlter }).then(() => {
     console.log('Database connected and models synced.');
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
