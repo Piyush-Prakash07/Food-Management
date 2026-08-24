@@ -78,43 +78,74 @@ router.post('/login', async (req, res) => {
 });
 
 // Google Sign-In
+// Google Sign-In
 router.post('/google', async (req, res) => {
     try {
-        const { credential, role, phone, city } = req.body; // Add explicit phone and city arguments 
+        const { credential, role, phone, city } = req.body;
 
-        // Verify the ID token using the official Google library
+        // Check whether credential was received
+        if (!credential) {
+            return res.status(400).json({
+                message: 'Google credential is missing'
+            });
+        }
+
+        console.log('Google Client ID:', process.env.GOOGLE_CLIENT_ID);
+        console.log('Credential received:', !!credential);
+
+        // Verify Google ID token
         const ticket = await googleClient.verifyIdToken({
             idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: process.env.GOOGLE_CLIENT_ID
         });
+
         const payload = ticket.getPayload();
-        const { email, name, sub } = payload; // sub is the unique Google user ID (optional to store)
 
-        // Find existing user or create a new one
-        let user = await User.findOne({ where: { email } });
+        console.log('Google token verified successfully');
+        console.log('Google user email:', payload.email);
 
+        const { email, name } = payload;
+
+        // Find existing user
+        let user = await User.findOne({
+            where: { email }
+        });
+
+        // Create user if not found
         if (!user) {
-            // Auto register if user doesn't exist
-            // Provide a random secure password as they login via Google
-            const randomPassword = await bcrypt.hash(Math.random().toString(36).slice(-10), 10);
+            const randomPassword = await bcrypt.hash(
+                Math.random().toString(36).slice(-12),
+                10
+            );
+
             user = await User.create({
-                name,
+                name: name || 'Google User',
                 email,
                 password: randomPassword,
-                role: role || 'Donor', // default role
+                role: role || 'Donor',
                 phone: phone || 'N/A',
                 city: city || 'N/A'
             });
+
+            console.log('New Google user created:', user.email);
+        } else {
+            console.log('Existing Google user logged in:', user.email);
         }
 
         // Generate JWT
         const token = jwt.sign(
-            { id: user.id, role: user.role, name: user.name },
-            process.env.JWT_SECRET || 'secretkey123',
-            { expiresIn: '1d' }
+            {
+                id: user.id,
+                role: user.role,
+                name: user.name
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: '1d'
+            }
         );
 
-        res.json({
+        return res.status(200).json({
             token,
             user: {
                 id: user.id,
@@ -126,7 +157,11 @@ router.post('/google', async (req, res) => {
 
     } catch (error) {
         console.error('Google Sign-In Error:', error);
-        res.status(401).json({ message: 'Invalid or expired Google Token' });
+
+        return res.status(401).json({
+            message: 'Google authentication failed',
+            error: error.message
+        });
     }
 });
 

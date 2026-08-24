@@ -13,12 +13,35 @@ dotenv.config();
 
 const app = express();
 
+// ================= CORS CONFIGURATION =================
+
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://food-management-iota-lilac.vercel.app'
+];
+
+if (process.env.ALLOWED_ORIGINS) {
+    allowedOrigins.push(
+        ...process.env.ALLOWED_ORIGINS
+            .split(',')
+            .map(origin => origin.trim())
+            .filter(Boolean)
+    );
+}
+
 const corsOptions = {
-    origin: process.env.ALLOWED_ORIGINS 
-        ? process.env.ALLOWED_ORIGINS.split(',') 
-        : 'http://localhost:5173',
+    origin: function (origin, callback) {
+        // Allow requests without origin, such as Postman
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log('CORS blocked origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 };
+
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -38,18 +61,22 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/volunteer', volunteerRoutes);
 app.use('/api/users', userRoutes);
 
-// Sync Database logic
+// Server Port
 const PORT = process.env.PORT || 5000;
 
-// Safe DB sync: do not run alter: true in production unless explicitly requested.
+// Safe DB sync
 const isProd = process.env.NODE_ENV === 'production';
-const shouldAlter = process.env.DB_SYNC_ALTER === 'true' || !isProd;
+const shouldAlter =
+    process.env.DB_SYNC_ALTER === 'true' || !isProd;
 
-db.sequelize.sync({ alter: shouldAlter }).then(() => {
-    console.log('Database connected and models synced.');
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+db.sequelize.sync({ alter: shouldAlter })
+    .then(() => {
+        console.log('Database connected and models synced.');
+
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('Failed to sync database:', err);
     });
-}).catch(err => {
-    console.error('Failed to sync database:', err);
-});
