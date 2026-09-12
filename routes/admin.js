@@ -83,7 +83,10 @@ router.get('/dashboard', authenticateToken, verifyRole(['Admin']), async (req, r
             }
         }));
 
-        const volunteers = await User.findAll({ where: { role: 'Volunteer' }, attributes: ['id', 'name'] });
+        const volunteers = await User.findAll({ 
+            where: { role: 'Volunteer' }, 
+            attributes: ['id', 'name', 'phone', 'city', 'email'] 
+        });
         const donorsCount = await User.count({ where: { role: 'Donor' } });
         const ngosCount = await User.count({ where: { role: 'NGO' } });
         const volunteersCount = volunteers.length;
@@ -103,19 +106,31 @@ router.get('/dashboard', authenticateToken, verifyRole(['Admin']), async (req, r
         const activeDeliveries = await PickupDelivery.findAll({
             where: deliveryWhere,
             include: [
-                { model: User, as: 'Volunteer', attributes: ['name'] },
-                { model: DonationAssignment, include: [FoodDonation, FoodRequest] }
+                { model: User, as: 'Volunteer', attributes: ['id', 'name', 'phone', 'city'] },
+                { 
+                    model: DonationAssignment, 
+                    include: [
+                        { 
+                            model: FoodDonation, 
+                            include: [{ model: User, as: 'Donor', attributes: ['name', 'phone', 'city'] }] 
+                        },
+                        { 
+                            model: FoodRequest, 
+                            include: [{ model: User, as: 'NGO', attributes: ['name', 'phone', 'city'] }] 
+                        }
+                    ] 
+                }
             ]
         });
 
         const pendingDonations = await FoodDonation.findAll({
             where: { status: { [Op.in]: ['Available', 'Pending'] } },
-            include: [{ model: User, as: 'Donor', attributes: ['name', 'phone', 'city'] }]
+            include: [{ model: User, as: 'Donor', attributes: ['name', 'phone', 'city', 'email'] }]
         });
 
         const pendingRequests = await FoodRequest.findAll({
             where: { status: 'Pending' },
-            include: [{ model: User, as: 'NGO', attributes: ['name', 'phone', 'city'] }]
+            include: [{ model: User, as: 'NGO', attributes: ['name', 'phone', 'city', 'email'] }]
         });
 
         res.json({

@@ -7,15 +7,39 @@ const { User } = require('../models');
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Check if an Admin already exists
+router.get('/admin-status', async (req, res) => {
+    try {
+        const adminCount = await User.count({ where: { role: 'Admin' } });
+        res.json({ adminExists: adminCount > 0 });
+    } catch (error) {
+        console.error('Admin Status Check Error:', error);
+        res.status(500).json({ message: 'Server error checking admin status' });
+    }
+});
+
 // User Registration
 router.post('/register', async (req, res) => {
     try {
         const { name, email, password, role, phone, city } = req.body;
 
+        if (!email || !password || !name) {
+            return res.status(400).json({ message: 'Name, email, and password are required' });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // Strictly forbid registering as Admin
+        if (role === 'Admin') {
+            return res.status(403).json({ 
+                message: 'Admin accounts cannot be registered publicly. Only one master administrator is permitted.' 
+            });
+        }
+
         // Check if user exists
-        const existingUser = await User.findOne({ where: { email } });
+        const existingUser = await User.findOne({ where: { email: normalizedEmail } });
         if (existingUser) {
-            return res.status(400).json({ message: 'User already exists' });
+            return res.status(400).json({ message: 'An account with this email already exists' });
         }
 
         // Hash password
@@ -23,15 +47,33 @@ router.post('/register', async (req, res) => {
 
         // Create new user
         const newUser = await User.create({
-            name,
-            email,
+            name: name.trim(),
+            email: normalizedEmail,
             password: hashedPassword,
-            role,
-            phone,
-            city
+            role: role || 'Donor',
+            phone: phone ? phone.trim() : 'N/A',
+            city: city ? city.trim() : 'N/A'
         });
 
-        res.status(201).json({ message: 'User registered successfully', userId: newUser.id });
+        // Auto-generate JWT for seamless registration
+        const token = jwt.sign(
+            { id: newUser.id, role: newUser.role, name: newUser.name },
+            process.env.JWT_SECRET || 'secretkey123',
+            { expiresIn: '1d' }
+        );
+
+        res.status(201).json({ 
+            message: 'User registered successfully', 
+            token,
+            user: {
+                id: newUser.id,
+                name: newUser.name,
+                email: newUser.email,
+                role: newUser.role,
+                phone: newUser.phone,
+                city: newUser.city
+            }
+        });
     } catch (error) {
         console.error('Registration Error:', error);
         res.status(500).json({ message: 'Server error during registration' });
@@ -43,16 +85,22 @@ router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Find user
-        const user = await User.findOne({ where: { email } });
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // Find user case-insensitively
+        const user = await User.findOne({ where: { email: normalizedEmail } });
         if (!user) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ message: 'Invalid email or password' });
         }
 
         // Compare password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ message: 'Invalid email or password' });
         }
 
         // Generate JWT
@@ -68,7 +116,9 @@ router.post('/login', async (req, res) => {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                phone: user.phone,
+                city: user.city
             }
         });
     } catch (error) {
@@ -113,6 +163,14 @@ router.post('/google', async (req, res) => {
 
         // Create user if not found
         if (!user) {
+            let assignedRole = role || 'Donor';
+            if (assignedRole === 'Admin') {
+                const existingAdmin = await User.findOne({ where: { role: 'Admin' } });
+                if (existingAdmin) {
+                    assignedRole = 'Donor'; // Default to Donor if an Admin already exists
+                }
+            }
+
             const randomPassword = await bcrypt.hash(
                 Math.random().toString(36).slice(-12),
                 10
@@ -122,12 +180,12 @@ router.post('/google', async (req, res) => {
                 name: name || 'Google User',
                 email,
                 password: randomPassword,
-                role: role || 'Donor',
+                role: assignedRole,
                 phone: phone || 'N/A',
                 city: city || 'N/A'
             });
 
-            console.log('New Google user created:', user.email);
+            console.log('New Google user created:', user.email, 'Role:', user.role);
         } else {
             console.log('Existing Google user logged in:', user.email);
         }
@@ -139,7 +197,7 @@ router.post('/google', async (req, res) => {
                 role: user.role,
                 name: user.name
             },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'secretkey123',
             {
                 expiresIn: '1d'
             }

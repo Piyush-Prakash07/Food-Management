@@ -26,9 +26,9 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <div className="min-h-screen flex flex-col bg-[#0f172a] text-[#f8fafc]">
+        <div className="min-h-screen flex flex-col bg-[#0a0f1c] text-[#f8fafc]">
           <Navbar />
-          <main className="flex-grow container mx-auto px-4 py-8">
+          <main className="flex-grow w-full flex flex-col">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />

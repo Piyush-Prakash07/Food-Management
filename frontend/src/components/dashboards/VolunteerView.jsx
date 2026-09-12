@@ -9,6 +9,7 @@ import {
     MapPin
 } from 'lucide-react';
 import api from '../../api/axios';
+import { calculateDistanceKm, formatDistance, estimateTransitTime } from '../../utils/geo';
 
 const VolunteerView = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -490,6 +491,17 @@ const VolunteerView = () => {
                                                             </span>
                                                         </div>
 
+                                                        {/* Route Distance Badge */}
+                                                        {donation.Donor?.city && request.NGO?.city && (() => {
+                                                            const dist = calculateDistanceKm(donation.Donor.city, request.NGO.city, task.id, task.id + 50);
+                                                            return (
+                                                                <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-emerald-950/70 border border-emerald-600/40 rounded-lg text-xs text-emerald-300 font-bold mt-1">
+                                                                    <span>📍 Route: {formatDistance(dist)}</span>
+                                                                    <span className="text-gray-400">•</span>
+                                                                    <span>⏱ {estimateTransitTime(dist)}</span>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
 
@@ -594,6 +606,10 @@ const VolunteerView = () => {
                                             </th>
 
                                             <th className="px-4 py-4 font-medium">
+                                                Distance & ETA
+                                            </th>
+
+                                            <th className="px-4 py-4 font-medium">
                                                 Pickup Status
                                             </th>
 
@@ -664,6 +680,28 @@ const VolunteerView = () => {
 
                                                     </td>
 
+                                                    <td className="px-4 py-4 text-gray-300">
+                                                        {(() => {
+                                                            const dCity = donation.Donor?.city;
+                                                            const rCity = request.NGO?.city;
+                                                            const dist = (dCity && rCity)
+                                                                ? calculateDistanceKm(dCity, rCity, task.id, task.id + 50)
+                                                                : null;
+                                                            
+                                                            if (dist === null) {
+                                                                return <span className="text-xs text-gray-500">Direct Area</span>;
+                                                            }
+                                                            return (
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-bold text-emerald-400 text-xs flex items-center gap-1">
+                                                                        <MapPin size={11} /> {formatDistance(dist)}
+                                                                    </span>
+                                                                    <span className="text-[11px] text-gray-400">⏱ {estimateTransitTime(dist)}</span>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </td>
+
                                                     <td className="px-4 py-4">
                                                         {getStatusBadge(
                                                             task.pickup_status ||
@@ -726,12 +764,12 @@ const VolunteerView = () => {
     };
 
     return (
-        <div className="flex -mx-4 -my-8 h-screen bg-[#0f172a]">
+        <div className="flex w-full min-h-[calc(100vh-64px)] bg-[#0a0f1c]">
 
             {/* SIDEBAR */}
-            <div className="w-64 bg-[#111827] border-r border-gray-800 flex flex-col hidden md:flex shrink-0 h-full overflow-y-auto pt-8">
+            <div className="w-64 bg-[#111827] border-r border-gray-800 flex flex-col hidden md:flex shrink-0 min-h-full overflow-y-auto py-8">
 
-                <nav className="flex-1 px-4 space-y-2 mt-4">
+                <nav className="flex-1 px-4 space-y-2">
 
                     <button
                         onClick={() => setActiveTab('dashboard')}
@@ -783,7 +821,7 @@ const VolunteerView = () => {
             </div>
 
             {/* MAIN CONTENT */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 h-full bg-[#0a0f1c]">
+            <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-10 space-y-8 bg-[#0a0f1c]">
                 {renderTabContent()}
             </div>
 

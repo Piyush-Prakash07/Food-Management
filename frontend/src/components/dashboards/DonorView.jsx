@@ -8,9 +8,15 @@ import {
     Clock,
     ArrowRight,
     Utensils,
-    Users
+    Users,
+    MapPin,
+    Building,
+    Truck,
+    Navigation,
+    Sparkles
 } from 'lucide-react';
 import api from '../../api/axios';
+import { calculateDistanceKm, formatDistance, estimateTransitTime } from '../../utils/geo';
 
 const DonorView = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -285,6 +291,105 @@ const DonorView = () => {
                             </div>
                         </div>
 
+                        {/* Assigned Impact & Live Deliveries Tracker */}
+                        {(() => {
+                            const assignedList = donations.filter(d => d.DonationAssignments && d.DonationAssignments.length > 0);
+                            if (assignedList.length === 0) return null;
+
+                            return (
+                                <div className="bg-[#111827] border border-emerald-700/40 rounded-2xl p-6 shadow-xl space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                                                <Sparkles size={20} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-white">
+                                                    Matched NGO Recipients & Live Transit Tracking ({assignedList.length})
+                                                </h3>
+                                                <p className="text-xs text-gray-400">
+                                                    Your donations matched with verified NGOs and shelters
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {assignedList.map(donation => {
+                                            const assignment = donation.DonationAssignments[0];
+                                            const ngo = assignment?.FoodRequest?.NGO;
+                                            const volunteer = assignment?.PickupDelivery?.Volunteer;
+                                            const donorCity = donation.Donor?.city || '';
+                                            const ngoCity = ngo?.city || '';
+                                            const distKm = (donorCity && ngoCity) 
+                                                ? calculateDistanceKm(donorCity, ngoCity, donation.id, assignment.id) 
+                                                : null;
+
+                                            return (
+                                                <div key={donation.id} className="bg-[#0f172a] p-4 rounded-xl border border-gray-800 hover:border-emerald-500/50 transition flex flex-col justify-between space-y-3">
+                                                    <div>
+                                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                                            <div className="font-extrabold text-white text-base">
+                                                                {donation.quantity}x {donation.food_type}
+                                                            </div>
+                                                            {getStatusBadge(displayStatus(donation.status))}
+                                                        </div>
+
+                                                        {/* Assigned NGO Info */}
+                                                        {ngo ? (
+                                                            <div className="bg-blue-950/40 p-3 rounded-xl border border-blue-900/40 space-y-1 text-xs">
+                                                                <div className="text-[10px] font-extrabold uppercase tracking-wider text-blue-400">
+                                                                    Assigned Recipient (NGO / Shelter)
+                                                                </div>
+                                                                <div className="font-bold text-white text-sm">
+                                                                    🏢 {ngo.name}
+                                                                </div>
+                                                                <div className="text-blue-300 flex items-center gap-1 font-semibold">
+                                                                    <MapPin size={12} className="text-blue-400" /> {ngoCity || 'City N/A'}
+                                                                </div>
+                                                                {ngo.phone && (
+                                                                    <div className="text-gray-400 text-[11px]">
+                                                                        📞 {ngo.phone}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-xs text-gray-400 bg-gray-900/60 p-2.5 rounded-xl">
+                                                                Direct Community Distribution
+                                                            </div>
+                                                        )}
+
+                                                        {/* Trip Distance & ETA Badge */}
+                                                        {distKm !== null && (
+                                                            <div className="mt-2.5 p-2 bg-emerald-950/60 rounded-lg border border-emerald-800/40 text-xs flex items-center justify-between text-emerald-300">
+                                                                <span className="font-bold flex items-center gap-1">
+                                                                    <Navigation size={12} /> Distance: {formatDistance(distKm)}
+                                                                </span>
+                                                                <span className="text-[11px] text-gray-300">
+                                                                    ⏱ ETA: {estimateTransitTime(distKm)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Assigned Volunteer Delivery Agent */}
+                                                        {volunteer && (
+                                                            <div className="mt-2 pt-2 border-t border-gray-800 flex items-center justify-between text-xs text-gray-400">
+                                                                <span className="flex items-center gap-1">
+                                                                    <Truck size={13} className="text-purple-400" />
+                                                                    Volunteer: <strong className="text-gray-200">{volunteer.name}</strong>
+                                                                </span>
+                                                                {volunteer.phone && <span>📞 {volunteer.phone}</span>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         <div className="grid md:grid-cols-2 gap-6">
                             <div className="bg-[#111827] border border-gray-800 rounded-2xl p-6 md:p-8">
                                 <h3 className="text-xl font-bold text-white mb-2">
@@ -383,7 +488,7 @@ const DonorView = () => {
 
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-300 mb-1.5">
-                                            Quantity (servings)
+                                            Quantity (servings / units)
                                         </label>
 
                                         <input
@@ -428,39 +533,29 @@ const DonorView = () => {
                                 </p>
 
                                 <div className="space-y-4">
-                                    <div className="flex justify-between items-center text-xs text-gray-500 font-medium px-1 mb-2">
-                                        <div className="w-1/3">Food Type</div>
-                                        <div className="w-1/3 text-center">
-                                            Quantity
-                                        </div>
-                                        <div className="w-1/3 text-right">
-                                            Status
-                                        </div>
-                                    </div>
-
-                                    {donations.slice(0, 6).map(donation => (
+                                    {donations.slice(0, 5).map(don => (
                                         <div
-                                            key={donation.id}
-                                            className="flex justify-between items-center text-sm py-2 px-1"
+                                            key={don.id}
+                                            className="grid grid-cols-3 items-center text-sm py-2 gap-4"
                                         >
-                                            <div className="text-gray-300 font-medium w-1/3 truncate pr-2">
-                                                {donation.food_type}
+                                            <div className="text-gray-300 font-medium truncate">
+                                                {don.food_type}
                                             </div>
 
-                                            <div className="text-gray-400 w-1/3 text-center">
-                                                {donation.quantity}
+                                            <div className="text-gray-400 text-center">
+                                                {don.quantity}
                                             </div>
 
-                                            <div className="w-1/3 text-right flex justify-end">
+                                            <div className="flex justify-end">
                                                 {getStatusBadge(
-                                                    displayStatus(donation.status)
+                                                    displayStatus(don.status)
                                                 )}
                                             </div>
                                         </div>
                                     ))}
 
                                     {donations.length === 0 && (
-                                        <div className="text-gray-500 text-sm py-4 text-center">
+                                        <div className="text-gray-500 text-sm py-4">
                                             No recent donations
                                         </div>
                                     )}
@@ -479,7 +574,7 @@ const DonorView = () => {
                             </h2>
 
                             <p className="text-sm text-gray-400 mt-1">
-                                View your donation history
+                                View your donation history and assigned recipient details
                             </p>
                         </div>
 
@@ -491,7 +586,7 @@ const DonorView = () => {
                                     </h3>
 
                                     <p className="text-sm text-gray-500">
-                                        Complete history of your food donations
+                                        Complete log of your contributions with receiver locations
                                     </p>
                                 </div>
 
@@ -546,6 +641,15 @@ const DonorView = () => {
                                                 Quantity
                                             </th>
                                             <th className="px-4 py-4 font-medium">
+                                                Assigned Recipient (NGO) & Location
+                                            </th>
+                                            <th className="px-4 py-4 font-medium">
+                                                Route & Distance
+                                            </th>
+                                            <th className="px-4 py-4 font-medium">
+                                                Volunteer Delivery
+                                            </th>
+                                            <th className="px-4 py-4 font-medium">
                                                 Status
                                             </th>
                                             <th className="px-4 py-4 font-medium">
@@ -558,69 +662,135 @@ const DonorView = () => {
                                     </thead>
 
                                     <tbody className="divide-y divide-gray-800/50">
-                                        {donations.map(donation => (
-                                            <tr
-                                                key={donation.id}
-                                                className="hover:bg-gray-800/20 transition"
-                                            >
-                                                <td className="px-4 py-4 text-gray-200 font-medium whitespace-nowrap">
-                                                    {donation.food_type}
-                                                </td>
+                                        {donations.map(donation => {
+                                            const assignment = donation.DonationAssignments?.[0];
+                                            const ngo = assignment?.FoodRequest?.NGO;
+                                            const volunteer = assignment?.PickupDelivery?.Volunteer;
+                                            const donorCity = donation.Donor?.city || '';
+                                            const ngoCity = ngo?.city || '';
+                                            const distKm = (donorCity && ngoCity) 
+                                                ? calculateDistanceKm(donorCity, ngoCity, donation.id, assignment?.id || 1) 
+                                                : null;
 
-                                                <td className="px-4 py-4 text-emerald-400 font-medium">
-                                                    {donation.quantity}
-                                                </td>
+                                            return (
+                                                <tr
+                                                    key={donation.id}
+                                                    className="hover:bg-gray-800/20 transition"
+                                                >
+                                                    <td className="px-4 py-4 text-gray-200 font-bold whitespace-nowrap">
+                                                        {donation.food_type}
+                                                    </td>
 
-                                                <td className="px-4 py-4">
-                                                    {getStatusBadge(
-                                                        displayStatus(
-                                                            donation.status
-                                                        )
-                                                    )}
-                                                </td>
+                                                    <td className="px-4 py-4 text-emerald-400 font-medium">
+                                                        {donation.quantity} units
+                                                    </td>
 
-                                                <td className="px-4 py-4 text-gray-400">
-                                                    {new Date(
-                                                        donation.createdAt
-                                                    ).toLocaleDateString()}
-                                                </td>
+                                                    {/* Assigned Recipient NGO Column */}
+                                                    <td className="px-4 py-4 text-gray-300">
+                                                        {ngo ? (
+                                                            <div>
+                                                                <div className="font-bold text-white flex items-center gap-1">
+                                                                    <Building size={14} className="text-blue-400" /> {ngo.name}
+                                                                </div>
+                                                                <div className="text-xs text-blue-400 font-semibold flex items-center gap-1 mt-0.5">
+                                                                    <MapPin size={12} /> {ngoCity || 'City N/A'}
+                                                                </div>
+                                                                {ngo.phone && (
+                                                                    <div className="text-[11px] text-gray-400 mt-0.5">
+                                                                        📞 {ngo.phone}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-500 italic">
+                                                                Awaiting Match
+                                                            </span>
+                                                        )}
+                                                    </td>
 
-                                                <td className="px-4 py-4 text-right">
-                                                    {donation.status ===
-                                                        'Available' && (
-                                                        <div className="flex justify-end gap-2">
-                                                            <button
-                                                                onClick={() =>
-                                                                    setEditModal({
-                                                                        isOpen: true,
-                                                                        data: donation
-                                                                    })
-                                                                }
-                                                                className="text-blue-400 hover:text-blue-300 text-xs font-semibold px-2 py-1 bg-blue-900/20 rounded-md"
-                                                            >
-                                                                Edit
-                                                            </button>
+                                                    {/* Route Distance Column */}
+                                                    <td className="px-4 py-4 text-gray-300">
+                                                        {distKm !== null ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-emerald-400 text-xs flex items-center gap-1">
+                                                                    <MapPin size={11} /> {formatDistance(distKm)}
+                                                                </span>
+                                                                <span className="text-[11px] text-gray-400">⏱ {estimateTransitTime(distKm)}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-500">-</span>
+                                                        )}
+                                                    </td>
 
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleDelete(
-                                                                        donation.id
-                                                                    )
-                                                                }
-                                                                className="text-red-400 hover:text-red-300 text-xs font-semibold px-2 py-1 bg-red-900/20 rounded-md"
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    {/* Assigned Volunteer Column */}
+                                                    <td className="px-4 py-4 text-gray-300">
+                                                        {volunteer ? (
+                                                            <div>
+                                                                <div className="font-semibold text-white flex items-center gap-1">
+                                                                    <Truck size={13} className="text-purple-400" /> {volunteer.name}
+                                                                </div>
+                                                                {volunteer.phone && (
+                                                                    <div className="text-[11px] text-gray-400 mt-0.5">
+                                                                        📞 {volunteer.phone}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-500">-</span>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="px-4 py-4">
+                                                        {getStatusBadge(
+                                                            displayStatus(
+                                                                donation.status
+                                                            )
+                                                        )}
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-gray-400">
+                                                        {new Date(
+                                                            donation.createdAt
+                                                        ).toLocaleDateString()}
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-right">
+                                                        {donation.status ===
+                                                            'Available' && (
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() =>
+                                                                        setEditModal({
+                                                                            isOpen: true,
+                                                                            data: donation
+                                                                        })
+                                                                    }
+                                                                    className="text-blue-400 hover:text-blue-300 text-xs font-semibold px-2 py-1 bg-blue-900/20 rounded-md"
+                                                                >
+                                                                    Edit
+                                                                </button>
+
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleDelete(
+                                                                            donation.id
+                                                                        )
+                                                                    }
+                                                                    className="text-red-400 hover:text-red-300 text-xs font-semibold px-2 py-1 bg-red-900/20 rounded-md"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
 
                                         {donations.length === 0 && (
                                             <tr>
                                                 <td
-                                                    colSpan="5"
+                                                    colSpan="8"
                                                     className="text-center py-8 text-gray-500"
                                                 >
                                                     You haven't made any
@@ -641,10 +811,10 @@ const DonorView = () => {
     };
 
     return (
-        <div className="flex -mx-4 -my-8 h-screen bg-[#0f172a]">
+        <div className="flex w-full min-h-[calc(100vh-64px)] bg-[#0a0f1c]">
             {/* Sidebar */}
-            <div className="w-64 bg-[#111827] border-r border-gray-800 flex flex-col hidden md:flex shrink-0 h-full overflow-y-auto pt-8">
-                <nav className="flex-1 px-4 space-y-2 mt-4">
+            <div className="w-64 bg-[#111827] border-r border-gray-800 flex flex-col hidden md:flex shrink-0 min-h-full overflow-y-auto py-8">
+                <nav className="flex-1 px-4 space-y-2">
                     <button
                         onClick={() => setActiveTab('dashboard')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${
@@ -690,7 +860,7 @@ const DonorView = () => {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 h-full bg-[#0a0f1c]">
+            <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-10 space-y-8 bg-[#0a0f1c]">
                 {renderTabContent()}
 
                 {/* Edit Modal */}

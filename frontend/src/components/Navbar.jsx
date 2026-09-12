@@ -7,11 +7,11 @@ const Navbar = () => {
     const { user, logout } = useContext(AuthContext);
 
     return (
-        <nav className="bg-gray-900 shadow-sm border-b border-gray-800">
-            <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-                <Link to="/" className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 transition">
-                    <Utensils size={28} strokeWidth={2.5} />
-                    <span className="font-bold text-xl tracking-tight text-white">FoodShare</span>
+        <nav className="bg-[#111827] sticky top-0 z-40 shadow-md border-b border-gray-800">
+            <div className="w-full px-4 sm:px-8 lg:px-12 py-3.5 flex justify-between items-center">
+                <Link to="/" className="flex items-center gap-2.5 text-emerald-400 hover:text-emerald-300 transition">
+                    <Utensils size={26} strokeWidth={2.5} />
+                    <span className="font-extrabold text-xl tracking-tight text-white">FoodShare</span>
                 </Link>
 
                 <div className="flex items-center gap-6">

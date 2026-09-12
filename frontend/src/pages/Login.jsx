@@ -12,12 +12,25 @@ const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [isLoginMode, setIsLoginMode] = useState(true);
+    const [adminExists, setAdminExists] = useState(false);
 
     useEffect(() => {
         if (user && user.role) {
             navigate(`/${user.role.toLowerCase()}/dashboard`, { replace: true });
         }
     }, [user, navigate]);
+
+    useEffect(() => {
+        const checkAdminStatus = async () => {
+            try {
+                const res = await api.get('/api/auth/admin-status');
+                setAdminExists(res.data.adminExists);
+            } catch {
+                // Ignore failure, fallback to false
+            }
+        };
+        checkAdminStatus();
+    }, [isLoginMode]);
 
     // Added fields for registration
     const [regData, setRegData] = useState({ name: '', role: 'Donor', phone: '', city: '' });
@@ -26,30 +39,39 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
 
+        const email = formData.email.trim();
+        const password = formData.password;
+
         try {
             if (isLoginMode) {
                 // Real Backend Login
                 const response = await api.post('/api/auth/login', {
-                    email: formData.email,
-                    password: formData.password
+                    email,
+                    password
                 });
                 toast.success(`Welcome back, ${response.data.user.name}!`);
                 login(response.data.user, response.data.token);
             } else {
                 // Real Backend Registration
                 const response = await api.post('/api/auth/register', {
-                    name: regData.name,
-                    email: formData.email,
-                    password: formData.password,
+                    name: regData.name.trim(),
+                    email,
+                    password,
                     role: regData.role,
-                    phone: regData.phone,
-                    city: regData.city
+                    phone: regData.phone.trim(),
+                    city: regData.city.trim()
                 });
-                toast.success('Registration successful! Please sign in.');
-                setIsLoginMode(true); // Switch to login view
+                
+                if (response.data.token && response.data.user) {
+                    toast.success(`Welcome to FoodShare, ${response.data.user.name}!`);
+                    login(response.data.user, response.data.token);
+                } else {
+                    toast.success('Registration successful! Please sign in.');
+                    setIsLoginMode(true);
+                }
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Authentication failed');
+            toast.error(error.response?.data?.message || 'Authentication failed. Please check your credentials.');
         } finally {
             setLoading(false);
         }
@@ -74,7 +96,7 @@ const Login = () => {
     };
 
     return (
-        <div className="flex justify-center items-center h-[80vh] my-12">
+        <div className="flex justify-center items-center flex-1 py-10 px-4">
             <div className="bg-[#111827] p-8 md:p-10 rounded-2xl shadow-2xl w-full max-w-md border border-gray-800 my-auto overflow-y-auto max-h-[90vh] custom-scrollbar">
                 <div className="text-center mb-8">
                     <div className="inline-block p-1 text-emerald-500 mb-2">
@@ -117,12 +139,12 @@ const Login = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-300 mb-1.5">City</label>
+                                    <label className="block text-sm font-semibold text-gray-300 mb-1.5">City / Location</label>
                                     <input
                                         type="text"
                                         required
                                         className="w-full px-4 py-3 bg-[#0f172a] text-white border border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-colors"
-                                        placeholder="New York"
+                                        placeholder="e.g. Delhi, Mumbai, Bengaluru, Patna"
                                         value={regData.city}
                                         onChange={(e) => setRegData({ ...regData, city: e.target.value })}
                                     />
@@ -138,7 +160,6 @@ const Login = () => {
                                     <option value="Donor">Donor</option>
                                     <option value="NGO">NGO (Receiver)</option>
                                     <option value="Volunteer">Volunteer</option>
-                                    <option value="Admin">Admin</option>
                                 </select>
                             </div>
                         </>

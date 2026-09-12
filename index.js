@@ -17,6 +17,10 @@ const app = express();
 
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
     'https://food-management-iota-lilac.vercel.app'
 ];
 
@@ -31,8 +35,11 @@ if (process.env.ALLOWED_ORIGINS) {
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests without origin, such as Postman
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests without origin (Postman, mobile apps) or matching origins/localhost
+        if (!origin || 
+            allowedOrigins.includes(origin) || 
+            /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+        ) {
             callback(null, true);
         } else {
             console.log('CORS blocked origin:', origin);
@@ -64,12 +71,8 @@ app.use('/api/users', userRoutes);
 // Server Port
 const PORT = process.env.PORT || 5000;
 
-// Safe DB sync
-const isProd = process.env.NODE_ENV === 'production';
-const shouldAlter =
-    process.env.DB_SYNC_ALTER === 'true' || !isProd;
-
-db.sequelize.sync({ alter: shouldAlter })
+// Safe DB sync without alter loops
+db.sequelize.sync()
     .then(() => {
         console.log('Database connected and models synced.');
 

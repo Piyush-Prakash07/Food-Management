@@ -9,9 +9,11 @@ import {
     HandHeart,
     CheckCircle,
     Clock,
-    Link as LinkIcon
+    Link as LinkIcon,
+    MapPin
 } from 'lucide-react';
 import api from '../../api/axios';
+import { calculateDistanceKm, formatDistance, estimateTransitTime } from '../../utils/geo';
 
 const NGOView = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -612,43 +614,52 @@ const NGOView = () => {
 
                             {assignments.length > 0 ? (
                                 <div className="space-y-4">
-                                    {assignments.map(assignment => (
-                                        <div
-                                            key={assignment.id}
-                                            className="p-5 border border-gray-800 rounded-xl bg-[#0f172a] flex flex-col md:flex-row justify-between md:items-center gap-4"
-                                        >
-                                            <div>
-                                                <h4 className="font-bold text-lg text-gray-100 flex items-center gap-2">
-                                                    Matched with:{' '}
-                                                    {assignment.FoodDonation?.food_type}
-                                                </h4>
+                                    {assignments.map(assignment => {
+                                        const donorCity = assignment.FoodDonation?.Donor?.city || '';
+                                        const ngoCity = assignment.FoodRequest?.NGO?.city || '';
+                                        const distKm = (donorCity && ngoCity) 
+                                            ? calculateDistanceKm(donorCity, ngoCity, assignment.FoodDonation?.id, assignment.FoodRequest?.id)
+                                            : null;
 
-                                                <div className="text-sm text-gray-400 mt-2">
-                                                    Donated by:{' '}
-                                                    {assignment.FoodDonation?.Donor
-                                                        ?.name || 'Unknown Donor'}{' '}
-                                                    (
-                                                    {assignment.FoodDonation?.Donor
-                                                        ?.city || 'No city'}
-                                                    )
-                                                    <br />
-                                                    Quantity:{' '}
-                                                    {assignment.FoodDonation?.quantity}{' '}
-                                                    units
+                                        return (
+                                            <div
+                                                key={assignment.id}
+                                                className="p-5 border border-gray-800 rounded-xl bg-[#0f172a] flex flex-col md:flex-row justify-between md:items-center gap-4"
+                                            >
+                                                <div>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <h4 className="font-bold text-lg text-gray-100 flex items-center gap-2">
+                                                            Matched with: {assignment.FoodDonation?.food_type}
+                                                        </h4>
+                                                        {distKm !== null && (
+                                                            <span className="text-xs bg-emerald-950/80 text-emerald-300 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-700/50 flex items-center gap-1">
+                                                                <MapPin size={11} /> {formatDistance(distKm)} • {estimateTransitTime(distKm)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="text-sm text-gray-400 mt-2 space-y-0.5">
+                                                        <div>
+                                                            Donated by: <strong className="text-white">{assignment.FoodDonation?.Donor?.name || 'Unknown Donor'}</strong> ({donorCity || 'No city'})
+                                                        </div>
+                                                        <div>
+                                                            Quantity: <strong className="text-emerald-400">{assignment.FoodDonation?.quantity} units</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col items-end gap-2">
+                                                    {getStatusBadge(assignment.status)}
+
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(
+                                                            assignment.createdAt
+                                                        ).toLocaleDateString()}
+                                                    </span>
                                                 </div>
                                             </div>
-
-                                            <div className="flex flex-col items-end gap-2">
-                                                {getStatusBadge(assignment.status)}
-
-                                                <span className="text-xs text-gray-500">
-                                                    {new Date(
-                                                        assignment.createdAt
-                                                    ).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="text-center py-16 text-gray-500">
@@ -665,9 +676,9 @@ const NGOView = () => {
     };
 
     return (
-        <div className="flex -mx-4 -my-8 h-screen bg-[#0f172a]">
-            <div className="w-64 bg-[#111827] border-r border-gray-800 flex flex-col hidden md:flex shrink-0 h-full overflow-y-auto pt-8">
-                <nav className="flex-1 px-4 space-y-2 mt-4">
+        <div className="flex w-full min-h-[calc(100vh-64px)] bg-[#0a0f1c]">
+            <div className="w-64 bg-[#111827] border-r border-gray-800 flex flex-col hidden md:flex shrink-0 min-h-full overflow-y-auto py-8">
+                <nav className="flex-1 px-4 space-y-2">
                     <button
                         onClick={() => setActiveTab('dashboard')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${
@@ -726,7 +737,7 @@ const NGOView = () => {
                 </nav>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 h-full bg-[#0a0f1c]">
+            <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-10 space-y-8 bg-[#0a0f1c]">
                 {renderTabContent()}
 
                 {editModal.isOpen && (

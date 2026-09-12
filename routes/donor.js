@@ -1,51 +1,44 @@
 const express = require('express');
-const { FoodDonation, User, sequelize } = require('../models');
-const { Op, QueryTypes } = require('sequelize');
+const { FoodDonation, User, DonationAssignment, FoodRequest, PickupDelivery, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const authenticateToken = require('../middleware/auth');
 const verifyRole = require('../middleware/rbac');
 
 const router = express.Router();
 
-// Get past donations for a specific donor
+// Get past donations for a specific donor with full assignment details
 router.get('/', authenticateToken, verifyRole(['Donor']), async (req, res) => {
     try {
         const { food_type, status } = req.query;
-
-        let sqlQuery = `SELECT d.id, d.donor_id, d.food_type, d.quantity, d.status, d.createdAt, d.updatedAt, u.name as donor_name 
-                        FROM Food_Donations d 
-                        JOIN Users u ON d.donor_id = u.id 
-                        WHERE d.donor_id = :donorId`;
-        let replacements = { donorId: req.user.id };
+        let whereClause = { donor_id: req.user.id };
 
         if (food_type) {
-            sqlQuery += ` AND d.food_type LIKE :foodType`;
-            replacements.foodType = `%${food_type}%`;
+            whereClause.food_type = { [Op.like]: `%${food_type}%` };
         }
         if (status) {
-            sqlQuery += ` AND d.status = :status`;
-            replacements.status = status;
+            whereClause.status = status;
         }
 
-        sqlQuery += ` ORDER BY d.createdAt DESC`;
-
-        const rawDonations = await sequelize.query(sqlQuery, {
-            replacements,
-            type: QueryTypes.SELECT
+        const donations = await FoodDonation.findAll({
+            where: whereClause,
+            include: [
+                { model: User, as: 'Donor', attributes: ['id', 'name', 'phone', 'city'] },
+                {
+                    model: DonationAssignment,
+                    include: [
+                        {
+                            model: FoodRequest,
+                            include: [{ model: User, as: 'NGO', attributes: ['id', 'name', 'phone', 'city', 'email'] }]
+                        },
+                        {
+                            model: PickupDelivery,
+                            include: [{ model: User, as: 'Volunteer', attributes: ['id', 'name', 'phone', 'city', 'email'] }]
+                        }
+                    ]
+                }
+            ],
+            order: [['createdAt', 'DESC']]
         });
-
-        // Map back to the structure the frontend expects
-        const donations = rawDonations.map(don => ({
-            id: don.id,
-            donor_id: don.donor_id,
-            food_type: don.food_type,
-            quantity: don.quantity,
-            status: don.status,
-            createdAt: don.createdAt,
-            updatedAt: don.updatedAt,
-            Donor: {
-                name: don.donor_name
-            }
-        }));
 
         res.json(donations);
     } catch (error) {
