@@ -329,4 +329,3 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 <div align="center">
   <sub>Built with ❤️ to fight food waste and feed communities.</sub>
 </div>
->>>>>>> 84873d8 (feat: add food management platform with backend routes, frontend dashboards, and geolocation utilities)
